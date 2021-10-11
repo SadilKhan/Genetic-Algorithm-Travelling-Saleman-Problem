@@ -104,3 +104,26 @@ class TSP:
         self.solutions.append(newPopulation[np.argmin(fitnessScorePop)])
         self.meanSolutions.append(np.mean(fitnessScorePop))
         self.population=newPopulation[sortScorePop[:100]]
+        
+        
+
+def initialize_population(numPopulation=100):
+    population=[]
+
+    for i in range(numPopulation):
+        population.append(permutation())
+    
+    population=np.array(population)
+    return population
+
+def permutation():
+    return np.random.permutation(list(range(0,10)))
+
+        
+        
+if __name__="__main__":
+    b=np.random.randint(0,100,(10,10))
+    distanceMat=(b+b.T)/2
+    cityList=initialize_population()
+    tsp=TSP(cityList,distanceMat)
+    
