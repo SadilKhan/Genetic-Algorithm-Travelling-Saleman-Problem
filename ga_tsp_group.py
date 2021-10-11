@@ -7,41 +7,100 @@ from matplotlib import cm
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
 
 
-class ga_tsp:
+class TSP:
     """ Genetic Algorithm for Travelling Salesman Problem"""
-    def __init__(self,lambdaa=100,mu=100,generation=400):
+    def __init__(self,cityList=None,distanceList=None,lambdaa=100,generation=400,recombProb=1,mutationProb=0.01):
+        self.population = cityList
+        self.distanceList = distanceList
         self.lambdaa = lambdaa # population Size
-        self.mu=mu # Offspring Size
         self.generation=generation # Number of Generation to proceed
+        self.recombProb = recombProb
+        self.mutationProb = mutationProb
+
+        self.optimize()
 
     def optimize(self):
+        self.meanSolutions=[] # mean of the fitness score per generations
+        self.bestSolutions=[] # Value of the best solutions per generations
+        self.solutions=[]
+        i=0
         
-        # Initialize Population
-        self.population()
+        while i<self.generation:
+            i+=1
+            selected=self.selection()
+            offspring=self.crossover(selected)     
+            mutatedOffspring=self.mutation(offspring)
 
-        for i in range(self.generation):
-            self.selection()
-            self.crossover()
-            self.mutation()
-            self.evaluation()
-            self.elimination()
+            newPopulation=np.concatenate((self.population,mutatedOffspring),axis=0)
 
-    def population(self):
-         """ Function for initializing Population """
-         self.popList=[]
-         for i in range(self.lambdaa):
-             individual=np.random.permutation(cityClass)
-             self.popList.append(individual)
-         return self.popList
+            self.elimination(newPopulation)
+
+    def fitness(self,population):
+        """Calculate the total distance for the route"""
+
+        scorePop=[]
+        for gene in population:
+            score=0
+            for i in range(len(gene)):
+                score+=self.distanceList[gene[i],gene[(i+1)%len(gene)]]
+            scorePop.append(score)
+        return scorePop
+
+    def mutation(self,offspring):
+
+        """ Swap Mutation"""
+
+        for i in range(len(offspring)):
+            if np.random.rand()<=self.mutationProb:
+                swapPos=np.random.randint(0,9,2)
+                val1,val2=offspring[i][swapPos[0]],offspring[i][swapPos[1]]
+                offspring[i][swapPos[0]]=val2
+                offspring[i][swapPos[1]]=val1   
         
+        mutatedOffspring=offspring
+        
+        return mutatedOffspring
 
+        
+    def crossover(self,selected):
+        """ Ordered crossover"""
+        offspring=[]
+        for i in range((len(selected)//2)-1):
+            child=[]
+            childP1=[]
+            childP2=[]
+            random_cut=np.sort(np.random.choice(range(1,9),2))
+            parent1=selected[2*i]
+            parent2=selected[2*i+1]
+            childP1+=list(parent1[random_cut[0]:random_cut[1]])
+            childP2=[chr for chr in parent2 if chr not in childP1]
+            child=childP2[:random_cut[0]]+childP1+childP2[random_cut[0]:]
+            offspring.append(child)
+       
+        return np.array(offspring)
+        
     def selection(self):
-        pass
-    def mutation(self):
-        pass
-    def evaluation(self):
-        pass
-    def elimination(self):
-        pass
-    def crossover(self):
-        pass
+        """K tournament Selection"""
+        selectedSize=int(self.lambdaa//2)
+
+        selected=[]
+        for i in range(selectedSize):
+            # Choose random candidates
+            choices=self.population[np.random.choice(range(self.lambdaa),7)]
+
+            # Evalute fitness for all candidates
+            scores=self.fitness(choices)
+
+            # Choose the best 2 of them
+            bestCandidate=choices[np.argsort(scores)[0]]
+            selected.append(bestCandidate)
+        return np.array(selected)
+        
+    def elimination(self,newPopulation):
+        """ Eliminate 2 least scoring candidates"""
+        fitnessScorePop=self.fitness(newPopulation)
+        sortScorePop=np.argsort(fitnessScorePop)
+        self.bestSolutions.append(np.min(fitnessScorePop))
+        self.solutions.append(newPopulation[np.argmin(fitnessScorePop)])
+        self.meanSolutions.append(np.mean(fitnessScorePop))
+        self.population=newPopulation[sortScorePop[:100]]
