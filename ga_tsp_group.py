@@ -9,10 +9,9 @@ from matplotlib.ticker import LinearLocator, FormatStrFormatter
 
 class TSP:
     """ Genetic Algorithm for Travelling Salesman Problem"""
-    def __init__(self,cityList=None,distanceList=None,lambdaa=100,generation=400,recombProb=1,mutationProb=0.01):
+    def __init__(self,cityList=None,distanceMat=None,generation=400,recombProb=1,mutationProb=0.01):
         self.population = cityList
-        self.distanceList = distanceList
-        self.lambdaa = lambdaa # population Size
+        self.distanceMat = distanceMat
         self.generation=generation # Number of Generation to proceed
         self.recombProb = recombProb
         self.mutationProb = mutationProb
@@ -20,6 +19,7 @@ class TSP:
         self.optimize()
 
     def optimize(self):
+        self.lambdaa = len(self.population) # population Size
         self.meanSolutions=[] # mean of the fitness score per generations
         self.bestSolutions=[] # Value of the best solutions per generations
         self.solutions=[]
@@ -34,6 +34,8 @@ class TSP:
             newPopulation=np.concatenate((self.population,mutatedOffspring),axis=0)
 
             self.elimination(newPopulation)
+        
+        print(f"The best solution is {self.bestSolutions[-1]} and route is {self.solutions[-1]}" )
 
     def fitness(self,population):
         """Calculate the total distance for the route"""
@@ -42,7 +44,7 @@ class TSP:
         for gene in population:
             score=0
             for i in range(len(gene)):
-                score+=self.distanceList[gene[i],gene[(i+1)%len(gene)]]
+                score+=self.distanceMat[gene[i],gene[(i+1)%len(gene)]]
             scorePop.append(score)
         return scorePop
 
@@ -86,7 +88,7 @@ class TSP:
         selected=[]
         for i in range(selectedSize):
             # Choose random candidates
-            choices=self.population[np.random.choice(range(self.lambdaa),7)]
+            choices=self.population[np.random.choice(range(self.lambdaa),3)]
 
             # Evalute fitness for all candidates
             scores=self.fitness(choices)
@@ -104,6 +106,7 @@ class TSP:
         self.solutions.append(newPopulation[np.argmin(fitnessScorePop)])
         self.meanSolutions.append(np.mean(fitnessScorePop))
         self.population=newPopulation[sortScorePop[:100]]
+
         
         
 
