@@ -1,10 +1,9 @@
 import numpy as np
 import random
 import time
-from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 from matplotlib import cm
-from matplotlib.ticker import LinearLocator, FormatStrFormatter
+import pandas as pd
 
 
 class TSP:
@@ -34,8 +33,9 @@ class TSP:
             newPopulation=np.concatenate((self.population,mutatedOffspring),axis=0)
 
             self.elimination(newPopulation)
+            print(f"The best solution is {self.bestSolutions[-1]} and route is {self.solutions[-1]}")
         
-        print(f"The best solution is {self.bestSolutions[-1]} and route is {self.solutions[-1]}" )
+        #print(f"The best solution is {self.bestSolutions[-1]} and route is {self.solutions[-1]}")
 
     def fitness(self,population):
         """Calculate the total distance for the route"""
@@ -43,6 +43,7 @@ class TSP:
         scorePop=[]
         for gene in population:
             score=0
+            #print(self.distanceMat.shape)
             for i in range(len(gene)):
                 score+=self.distanceMat[gene[i],gene[(i+1)%len(gene)]]
             scorePop.append(score)
@@ -54,7 +55,7 @@ class TSP:
 
         for i in range(len(offspring)):
             if np.random.rand()<=self.mutationProb:
-                swapPos=np.random.randint(0,9,2)
+                swapPos=np.random.randint(0,29,2)
                 val1,val2=offspring[i][swapPos[0]],offspring[i][swapPos[1]]
                 offspring[i][swapPos[0]]=val2
                 offspring[i][swapPos[1]]=val1   
@@ -71,7 +72,7 @@ class TSP:
             child=[]
             childP1=[]
             childP2=[]
-            random_cut=np.sort(np.random.choice(range(1,9),2))
+            random_cut=np.sort(np.random.choice(range(1,29),2))
             parent1=selected[2*i]
             parent2=selected[2*i+1]
             childP1+=list(parent1[random_cut[0]:random_cut[1]])
@@ -88,12 +89,12 @@ class TSP:
         selected=[]
         for i in range(selectedSize):
             # Choose random candidates
-            choices=self.population[np.random.choice(range(self.lambdaa),3)]
+            choices=self.population[np.random.choice(range(self.lambdaa),3)]#????
 
             # Evalute fitness for all candidates
             scores=self.fitness(choices)
 
-            # Choose the best 2 of them
+            # Choose the best of them
             bestCandidate=choices[np.argsort(scores)[0]]
             selected.append(bestCandidate)
         return np.array(selected)
@@ -120,13 +121,14 @@ def initialize_population(numPopulation=100):
     return population
 
 def permutation():
-    return np.random.permutation(list(range(0,10)))
+    gene=np.array([0])
+    gene=np.append(gene,np.random.permutation(list(range(1,29))))
+    return gene
 
         
         
-if __name__="__main__":
-    b=np.random.randint(0,100,(10,10))
-    distanceMat=(b+b.T)/2
-    cityList=initialize_population()
-    tsp=TSP(cityList,distanceMat)
+if __name__=="__main__":
     
+    distanceMat=pd.read_csv("tour29.csv",header=None)
+    cityList=initialize_population()
+    tsp=TSP(cityList,distanceMat.values)
