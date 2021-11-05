@@ -9,7 +9,7 @@ class r0873969:
 		self.reporter = Reporter.Reporter(self.__class__.__name__)
 
 	# The evolutionary algorithm's main loop
-	def optimize(self, filename,k):
+	def optimize(self, filename,k=5):
 		# Read distance matrix from file.		
 		file = open(filename)
 		distanceMatrix = np.loadtxt(file, delimiter=",")
@@ -18,11 +18,11 @@ class r0873969:
 		# Initialize necessary variables
 		self.population = self.initialize_population()
 		self.distanceMat = distanceMatrix
-		self.generation=100 # Number of Generation to proceed
+		self.generation=10000 # Number of Iteration
 		self.recombProb = 1
 		self.mutationProb = 0.01
-		i=0
 		self.k=k
+		i=0
 
 		self.lambdaa = len(self.population) # population Size
 		self.meanSolutions=[] # mean of the fitness score per generations
@@ -31,19 +31,24 @@ class r0873969:
 		
 
 		# Your code here.
-		self.elimination(self.population)
+		while(True):
+			# Selection
+			selected=self.selection()
+			# Crossover
+			offspring=self.crossover(selected)   
+			# Mutation  
+			mutatedOffspring=self.mutation(offspring)
+			# Addition of offspring in the population
+			newPopulation=np.concatenate((self.population,mutatedOffspring),axis=0)
 
-		while( i<self.generation):
+			#Eliminate the worst performing candidates from the population
+			self.elimination(newPopulation)
+			print(f"Generation {i} The best solution is {self.bestSolutions[-1]} and route is {self.solutions[-1]}")
+
+			# Get the last scores
 			meanObjective=self.meanSolutions[-1]
 			bestObjective=self.meanSolutions[-1]
 			bestSolution=self.solutions[-1]
-
-			selected=self.selection()
-			offspring=self.crossover(selected)     
-			mutatedOffspring=self.mutation(offspring)
-			newPopulation=np.concatenate((self.population,mutatedOffspring),axis=0)
-			self.elimination(newPopulation)
-			print(f"Generation {i} The best solution is {self.bestSolutions[-1]} and route is {self.solutions[-1]}")
 			# Your code here.
 
 			# Call the reporter with:
@@ -62,7 +67,7 @@ class r0873969:
 	def crossover(self,selected):
 		""" Ordered crossover"""
 		offspring=[]
-		for i in range((len(selected)//2)-1):
+		for i in range((len(selected)//2)):
 			child=[]
 			childP1=[]
 			childP2=[]
@@ -73,6 +78,7 @@ class r0873969:
 			childP2=[chr for chr in parent2 if chr not in childP1]
 			child=childP2[:random_cut[0]]+childP1+childP2[random_cut[0]:]
 			offspring.append(child)
+		print(len(offspring))
 		return np.array(offspring)
 
 	def fitness(self,population):
@@ -89,35 +95,33 @@ class r0873969:
 	
 	def selection(self):
 		"""K tournament Selection"""
-		selectedSize=int(3*self.lambdaa//4)
+		selectedSize=int(self.lambdaa//2)
 
 		selected=[]
 		for i in range(selectedSize):
-			# Choose random candidates
+			# Choose k random candidates for the tournament
 			choices=self.population[np.random.choice(range(self.lambdaa),self.k)]#????
 
-			# Evalute fitness for all candidates
+			# Evalute fitness for all candidates in the tournament
 			scores=self.fitness(choices)
 
 			# Choose the best of them
 			bestCandidate=choices[np.argsort(scores)[0]]
 			selected.append(bestCandidate)
 		return np.array(selected)
-
+	
 	def mutation(self,offspring):
-
-		""" Swap Mutation"""
+		""" Inversion Mutation """
 
 		for i in range(len(offspring)):
 			if np.random.rand()<=self.mutationProb:
-				swapPos=np.random.randint(0,29,2)
-				val1,val2=offspring[i][swapPos[0]],offspring[i][swapPos[1]]
-				offspring[i][swapPos[0]]=val2
-				offspring[i][swapPos[1]]=val1   
-		
+				inversePos=np.random.randint(1,29,2)
+				sublist=offspring[i][inversePos[0]:inversePos[1]]
+				sublist= np.flip(sublist)
+				offspring[i][inversePos[0]:inversePos[1]]=sublist
 		mutatedOffspring=offspring
-		
 		return mutatedOffspring
+
 	
 	def elimination(self,newPopulation):
 		""" Take only top 100 scoring candidates"""
@@ -143,10 +147,22 @@ class r0873969:
 		gene=np.array([0])
 		gene=np.append(gene,np.random.permutation(list(range(1,29))))
 		return gene
+	
+	def convergenceTest(self):
+		""" Check if the solutions improved in the last 100 solutions"""
+		if len(self.bestSolutions)<5000:
+			return True
+		
+		else:
+			if np.mean(self.bestSolutions[-5000:])==self.bestSolutions[-1]:
+				return True
+			else:
+				return False
+
 
 
 if __name__=="__main__":
 	fn=r0873969()
-	fn.optimize("tour29.csv",3)
-	plt.plot(range(fn.generation),fn.bestSolutions[1:])
+	fn.optimize("tour29.csv",5)
+	#plt.plot(range(fn.generation),fn.bestSolutions[1:])
 	plt.show()
