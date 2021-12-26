@@ -2,319 +2,478 @@ import Reporter
 import numpy as np
 import matplotlib.pyplot as plt
 import random
-from utils import PMX,install_package
-try:
-	from joblib import Parallel,delayed
-except:
-	install_package('joblib')
-# Modify the class name to match your student number.
-class r0873969:
 
-	def __init__(self):
-		self.reporter = Reporter.Reporter(self.__class__.__name__)
+
+class r0873969:
+    def __init__(self):
+        self.reporter = Reporter.Reporter(self.__class__.__name__)
 
 		# Best Solution yet in tour750: 117388
-		# Best Solution in tour250: 45789
+		# Best Solution in tour250: 46167
 
 	# The evolutionary algorithm's main loop
-	def optimize(self, filename,k=5):
+    def optimize(self, filename):
 		# Read distance matrix from file.		
-		file = open(filename)
-		distanceMatrix = np.loadtxt(file, delimiter=",")
-		file.close()
+        file = open(filename)
+        distanceMatrix = np.loadtxt(file, delimiter=",")
+        file.close()
 
-		# Initialize necessary variables
-		self.distanceMat = distanceMatrix
-		self.noinfmax=self.distanceMat[self.distanceMat!=np.inf].max()*1000
-		self.distanceMat=np.nan_to_num(self.distanceMat,copy=True,posinf=self.noinfmax)
-		self.numCity=len(self.distanceMat)
-		self.population = self.initialize_population(200)
-		self.generation=30000 # Number of Iteration
-		self.recombProb = 1
-		self.mutationProb = 0.4
-		self.localSearchProb=0.01
-		self.k=k
-		self.alpha=0.99
-		i=0
+        # Initialize necessary variables
 
-		self.lambdaa = len(self.population) # population Size
-		self.meanSolutions=[] # mean of the fitness score per generations
-		self.bestSolutions=[] # Value of the best solutions per generations
-		self.solutions=[]
-		
+        # Creating object of the operators
+        selection=Selection()
+        crossover=Crossover()
+        initialize=Initialization()
+        mutation=Mutation()
+        elimination=Elimination()
 
-		# Your code here.
-		while(True):
-			# Selection
-			selected=self.selection(self.population,i+1,int(self.lambdaa//2))
-			# Crossover
-			offspring=self.crossover1(selected)   
-			# Mutation  
-			mutatedOffspring=self.mutation_inverse(offspring)
-			# Addition of offspring in the population
-			#newPopulation=np.concatenate((self.population,mutatedOffspring),axis=0)
+        # There is Inf in the distance matrix, replace them with max value*1000
+        self.distanceMat = distanceMatrix
+        self.noinfmax=self.distanceMat[self.distanceMat!=np.inf].max()*1000
+        self.distanceMat=np.nan_to_num(self.distanceMat,copy=True,posinf=self.noinfmax)
+        self.numCity=len(self.distanceMat) # Number of cities in the problem.
+        # Number of population size
+        if self.numCity>100:
+            self.population = initialize.initialize_population(min(600,int(self.numCity*0.8)),self.distanceMat)
+        else:
+            self.population =initialize.initialize_population(100,self.distanceMat)
 
-			#Eliminate the worst performing candidates from the population
-			self.elimination(self.population,mutatedOffspring)
-			#print(f"Generation: {i}, Best Solution:{self.bestSolutions[-1]}, Route: {self.solutions[-1]}")
-			#print(f"Generation: {i}, Best Solution:{self.bestSolutions[-1]}")
+        self.generation=1 # Number of Iteration
+        self.recombProb = 1
+        self.mutationProb = 0.6
+        self.localSearchProb=0.01
+        i=0
 
-			# Get the last scores
-			meanObjective=self.meanSolutions[-1]
-			bestObjective=self.bestSolutions[-1]
-			bestSolution=self.solutions[-1]
-			# Your code here.
+        self.lambdaa = len(self.population) # population Size
+        self.meanSolutions=[] # mean of the fitness score per generations
+        self.bestSolutions=[] # Value of the best solutions per generations
+        self.solutions=[] # The candidate solutions
+        timeleft=300 # The total time. 5 mins
 
-			# Call the reporter with:
-			#  - the mean objective function value of the population
-			#  - the best objective function value of the population
-			#  - a 1D numpy array in the cycle notation containing the best solution 
-			#    with city numbering starting from 0
-			timeLeft = self.reporter.report(meanObjective, bestObjective, bestSolution)
-			print(f"Generation: {i}, Best Solution:{self.bestSolutions[-1]}, TimeLeft:{timeLeft}")
-			if timeLeft < 0:
-				break
-			i+=1
+        
 
-		# Your code here.
-		return 0
+        # Your code here.
+        while(True):
+            # Selection Operation
+            selected=selection.start(population=self.population,selectedSize=int(3*self.lambdaa//4),distanceMat=self.distanceMat)
+            # Recombination Operation
+            offspring=crossover.start(parentPool=selected,method="OX",distanceMat=self.distanceMat)   
+            # Mutation Operation
+            mutationFn=np.random.rand()
+            if mutationFn>0.4:
+                mutatedOffspring=mutation.start(population=offspring,method="INV",mutationProb=self.mutationProb)
+            else:
+                mutatedOffspring=mutation.start(population=offspring,method="CINV",mutationProb=self.mutationProb)
 
-	def crossover1(self,selected):
-		""" Ordered crossover"""
-		offspring=[]
-		selectedSize=len(selected)
-		bestCandCrossoverSize=int(0.3*selectedSize)
-		for i in range(bestCandCrossoverSize):
-			parent1=selected[2*i]
-			parent2=selected[2*i+1]
-			for j in range(2):
-				child=[]
-				childP1=[]
-				childP2=[]
-				random_cut=np.sort(np.random.choice(range(1,self.numCity),2))
-				if j==1:
-					parent1,parent2=parent2,parent1
-				childP1+=list(parent1[random_cut[0]:random_cut[1]])
-				childP2=[chr for chr in parent2 if chr not in childP1]
-				child=childP2[:random_cut[0]]+childP1+childP2[random_cut[0]:]
-				if np.random.rand()<=self.localSearchProb:
-					child=self.k_opt(child)
-				offspring.append(child)
-		for i in range(selectedSize-2*bestCandCrossoverSize):
-			x1,x2=np.random.permutation(list(range(selectedSize)))[:2]
-			parent1=selected[x1]
-			parent2=selected[x2]
-			child=[]
-			childP1=[]
-			childP2=[]
-			random_cut=np.sort(np.random.choice(range(1,self.numCity),2))
-			childP1+=list(parent1[random_cut[0]:random_cut[1]])
-			childP2=[chr for chr in parent2 if chr not in childP1]
-			child=childP2[:random_cut[0]]+childP1+childP2[random_cut[0]:]
-			if np.random.rand()<=self.localSearchProb:
-				child=self.k_opt(child)
-			offspring.append(child)
-		return np.array(offspring)
+            # Elimination Operation
+            self.population,bs,ms,s=elimination.start(oldPopulation=self.population,offspring=mutatedOffspring,distanceMat=self.distanceMat,timeleft=timeleft)
+            self.bestSolutions.append(bs)
+            self.meanSolutions.append(ms)
+            self.solutions.append(s)
+            #print(f"Generation: {i}, Best Solution:{self.bestSolutions[-1]}, Route: {self.solutions[-1]}")
+            #print(f"Generation: {i}, Best Solution:{self.bestSolutions[-1]}")
 
-	def fitness(self,population):
-		"""Calculate the total distance for the route"""
+            # Get the last scores
+            meanObjective=self.meanSolutions[-1]
+            bestObjective=self.bestSolutions[-1]
+            bestSolution=self.solutions[-1]
+            # Your code here.
 
-		scorePop=[]
-		for gene in population:
-			try:
-				score=self.distanceMat[gene,np.roll(gene,-1)].sum()
-			except:
-				print(gene)
-				break
-			scorePop.append(score)
-		return scorePop
-	
-	def findIndex(self,array,value):
-		"""Returns the last index of the array that is smaller than value"""
+            # Call the reporter with:
+            #  - the mean objective function value of the population
+            #  - the best objective function value of the population
+            #  - a 1D numpy array in the cycle notation containing the best solution 
+            #    with city numbering starting from 0
+            timeLeft = self.reporter.report(meanObjective, bestObjective, bestSolution)
+            print(f"Generation: {i}, Best Solution:{self.bestSolutions[-1]}, Mean Solution:{self.meanSolutions[-1]},TimeLeft:{timeLeft}")
+            if timeLeft < 0:
+                break
+            i+=1
 
-		for i in range(len(array)):
-			if (array[i]>value) & (i==0):
-				return 0
-			elif array[i]>value:
-				return i-1
+        # Your code here.
+        return 0    
 
+class Selection():
+    """ Custom class for Rank Selection Method
+    """
 
-	
-	def crossover(self,selected):
-		"""Partially Mapped Crossover"""
-		offspring=[]
-		selectedSize=len(selected)
-		bestCandCrossoverSize=int(0.3*selectedSize)
-		allChilds=Parallel(n_jobs=2)(delayed(PMX)(selected[2*i],selected[2*i+1]) for i in range(bestCandCrossoverSize))
-		for c in allChilds:
-			child1,child2=c
-			if np.random.rand()<=self.localSearchProb:
-				child1=self.k_opt(child1)
-				child2=self.k_opt(child2)
-			offspring.append(child1)
-			offspring.append(child2)
-		parentIndex=np.random.randint(1,selectedSize,(selectedSize-bestCandCrossoverSize,2))
-		allChilds=Parallel(n_jobs=2)(delayed(PMX)(selected[i[0]],selected[i[1]]) for i in parentIndex)
-		for c in allChilds:
-			child1,child2=c
-			if np.random.rand()<=self.localSearchProb:
-				child1=self.k_opt(child1)
-				child2=self.k_opt(child2)
-			offspring.append(child1)
-			offspring.append(child2)
-		return np.array(offspring)
-	
+    def __init__(self):
+        pass
+    def start(self,population,selectedSize,distanceMat):
+        """
+        Rank Selection with Linear Decay
 
-	def selection(self,population,iteration,selectedSize):
-		"""Rank Selection"""
-		selected=[]
-		# Calculate Fitness Scores
-		fitnessScorePop=self.fitness(self.population)
-		fitnessRankPop=np.argsort(fitnessScorePop)
-		rank=np.array(range(self.lambdaa-1,-1,-1))
-				
-		# Probability Density Function
-		l=fitnessScorePop/np.sum(fitnessScorePop)
+        Parameters
+        ----------
 
-		# Cumulative Density Function
-		cdf=np.cumsum(l)
-		for i in range(selectedSize):
-			# Choose a random value between 0 and 1
-			randomProb=np.random.rand()
-			index=self.findIndex(cdf,randomProb)
-			rankChoice=rank[index]
-			#print(rankChoice,len(fitnessScorePop))
-			fitnessRankPopChoice=fitnessRankPop[rankChoice]
-			candidateChoice=self.population[fitnessRankPopChoice]
-			selected.append(candidateChoice)
-		return np.array(selected)
+        population: 2d array like. Population with candidate solutions.
+        
+        selectedSize: int. The size of selected candidates in the population that will be 
+                        used for crossover
 
-	def slice_inversion(self,gene):
-		""" Randomly cut a slice and inverse it"""
-		inversePos=np.random.randint(1,self.numCity,2)
-		sublist=gene[inversePos[0]:inversePos[1]]
-		sublist= np.flip(sublist)
-		gene[inversePos[0]:inversePos[1]]=sublist
-		return gene
-	
-	def mutation_inverse(self,offspring):
-		""" Inverse Mutation """
+        distanceMat: 2d array like. Distance Matrix
 
-		for i in range(len(offspring)):
-			if np.random.rand()<=self.mutationProb:
-				offspring[i]=self.slice_inversion(offspring[i])
-		mutatedOffspring=offspring
-		return mutatedOffspring
-	
-	def mutation_center_inverse(self,offspring):
-		""" Center Inversion"""
+        Returns
+        -------
 
-		for i in range(len(offspring)):
-			if np.random.rand()<=self.mutationProb:
-				#centrePos=self.numCity//2
-				centrePos=np.random.randint(1,self.numCity)
-				offspring[i][1:centrePos]=np.flip(offspring[i][1:centrePos])
-				offspring[i][centrePos:]=np.flip(offspring[i][centrePos:])
-		mutatedOffspring=offspring
-		return mutatedOffspring
-	
-	def mutation_shuffle(self,offspring):
-		for i in range(len(offspring)):
-			if np.random.rand()<=self.mutationProb:
-				inversePos=np.random.randint(1,self.numCity,2)
-				offspring[i][inversePos[0]:inversePos[1]]=np.random.permutation(offspring[i][inversePos[0]:inversePos[1]])
-		mutatedOffspring=offspring
-		return mutatedOffspring
-	
-	def elimination(self,oldPopulation,offspring):
-		"""New Population = Elitism+Offspring"""
-		newPopulation=np.array([])
-		fitnessScorePop=self.fitness(oldPopulation)
-		sortScorePop=np.argsort(fitnessScorePop)
-		newPopulation=oldPopulation[sortScorePop[:self.lambdaa//2]]
-		newPopulation=np.concatenate((newPopulation,offspring),axis=0)
-		
-		fitnessScorePop=self.fitness(newPopulation)
-		self.bestSolutions.append(np.min(fitnessScorePop))
-		self.solutions.append(newPopulation[np.argmin(fitnessScorePop)])
-		self.meanSolutions.append(np.mean(fitnessScorePop))
-		self.population=newPopulation
+        selected: 2d array. Contains the candidate solutions for crossover
+        
+        """
+        selected=[]
+        lambdaa=len(population)
+        # Calculate Fitness Scores
+        fitnessScorePop=Metrics().fitness(population,distanceMat)
+        # Assign rank to the fitness
+        fitnessRankPop=np.argsort(fitnessScorePop)
+        rank=np.array(range(lambdaa-1,-1,-1))
+                
+        # Probability Density Function
+        l=fitnessScorePop/np.sum(fitnessScorePop)
+
+        # Cumulative Density Function
+        cdf=np.cumsum(l)
+        while len(selected)<selectedSize:
+            randomProb=np.random.rand() # Random value between 0 and 1.
+            index=self.findIndex(cdf,randomProb) # The last index of the array is smaller than the value.
+            rankChoice=rank[index] # The rank of that index.
+            fitnessRankPopChoice=fitnessRankPop[rankChoice] # The index of the candidate for the rank.
+            candidateChoice=population[fitnessRankPopChoice] # The candidate.
+            # Check if the candidate is present in the solution or not
+            selected.append(candidateChoice) # Add the solution
+        return np.array(selected)
+    
+    def findIndex(self,array,value):
+        """
+        Returns the last index of the array that is smaller than the value
+
+        Parameters
+        ----------
+
+        array: 1d array or list like.
+
+        value: int or float.
+
+        Returns
+        -------
+
+        index: int. Last Index of the array that is smaller than the value.
+        
+        """
+        for i in range(len(array)):
+            if (array[i]>value) & (i==0):
+                return 0
+            elif array[i]>value:
+                return i-1
+
+class Crossover():
+    """ Recombination Operator"""
+    def __init__(self):
+        self.localSearchProb=0.01 # Local Search Probability
+    def start(self,parentPool,method,distanceMat):
+        """
+        Crossover
+
+        Parameters
+        ----------
+
+        parentPool: 2d array like. Parent candidate solutions.
+        
+        method: string , default = "OX". 
+                If "OX"--> Ordered Crossover
+                If "ERO" --> Edge Recombination Operator
+
+        Returns
+        -------
+        offspring: 2d array like.        
+        """
+        self.numCity=len(distanceMat)
+        if method == "OX":
+            recomOper=self.ordered_crossover
+        offspring=[]
+        selectedSize=len(parentPool)
+        bestCandCrossoverSize=int(0.2*selectedSize) # No of Best candidates used for intra-group crossover
+        bestAvgCandCrossoverSize=(selectedSize-2*bestCandCrossoverSize)//4 # No of the candidates used for inter-group crossover
+
+        # Crossover within best candidates
+        for i in range(bestCandCrossoverSize):
+            parent1=parentPool[2*i]
+            parent2=parentPool[2*i+1]
+            child1=recomOper(parent1,parent2,distanceMat)
+            child2=recomOper(parent2,parent1,distanceMat)
+            offspring.append(child1)
+            offspring.append(child2)
+        # Crossover between Best candidates and rest of the candidates
+        for i in range(bestAvgCandCrossoverSize):
+            x1=np.random.choice(range(bestCandCrossoverSize))
+            x2=np.random.choice(range(bestCandCrossoverSize,selectedSize))
+            parent1=parentPool[x1]
+            parent2=parentPool[x2]
+            child=recomOper(parent1,parent2,distanceMat)
+            offspring.append(child)
+        
+        # Crossover within poor performing candidates
+        for i in range(selectedSize-2*bestCandCrossoverSize-bestAvgCandCrossoverSize):
+            x1,x2=np.random.choice(range(bestCandCrossoverSize,selectedSize),2)
+            parent1=parentPool[x1]
+            parent2=parentPool[x2]
+            child=recomOper(parent1,parent2,distanceMat)
+            offspring.append(child)
+        return offspring
 
 
-	def greedySol(self):
-		greedyGene=[np.random.randint(0,self.numCity)]
-		#score=0
-		while len(greedyGene)<self.numCity-1:
-			index=greedyGene[-1]
-			added=False
-			i=1
-			minCity=np.argsort(self.distanceMat[index])
-			while not added:
-				if minCity[i] not in greedyGene:
-					greedyGene.append(minCity[i])
-					#score+=self.distanceMat[index][minCity[i]]
-					added=True
-				i+=1
-		extraCity=np.setdiff1d(list(range(self.numCity)),greedyGene)[0]
-		greedyGene.append(extraCity)
-		while greedyGene[0]!=0:
-			greedyGene=np.roll(greedyGene,-1)
-		#print(len(np.unique(greedyGene)))
-		return greedyGene
 
-	def k_opt(self,gene,k=1,setSize=5):
-		""" k-opt Local Search"""
-		population=[gene]
-		for i in range(setSize):
-			population.append(self.slice_inversion(gene))
-		fitness=self.fitness(population)
-		choice=np.argmin(fitness)
-		if choice!=0:
-			print("FOUND")
-		return population[choice]
+    def ordered_crossover(self,parent1,parent2,distanceMat):
+        """ 
+        Ordered Crossover
 
-	def initialize_population(self,numPopulation=100):
-		"""Initialize The Poplulation"""
-		population=[]
-		greedySize=int(0.2*numPopulation)
-		#SampleLocalSize=int(0.2*numPopulation)
-		for i in range(greedySize):
-			population.append(self.greedySol())
+        Parameters
+        ----------
+        parent1: array like.
+        
+        parent2: array like.
 
-		
-		"""for i in range(SampleLocalSize):
-			geneNum=np.random.randint(0,greedySize)
-			gene=population[geneNum]
-			population.append(self.slice_inversion(gene))"""
-		for i in range(numPopulation-greedySize):
-			population.append(self.permutation())
-		
-		population=np.array(population)
-		population.resize(numPopulation,self.numCity)
-		return population
+        distanceMat: 2d array like. Distance matrix. 
 
-	def permutation(self):
-		""" Returns a permuation of C Integers representing a list of cities."""
-		gene=np.array([0])
-		gene=np.append(gene,np.random.permutation(list(range(1,self.numCity))))
-		return gene
-	
-	def convergenceTest(self):
-		""" Check if the solutions improved in the last 100 solutions"""
-		if len(self.bestSolutions)<5000:
-			return True
-		
-		else:
-			if np.mean(self.bestSolutions[-5000:])==self.bestSolutions[-1]:
-				return True
-			else:
-				return False
+        Returns
+        -------
+        child: array like.
+        """
+        localsearch=LocalSearch()
+        child=[]
+        childP1=[]
+        childP2=[]
+        random_cut=np.sort(np.random.choice(range(1,self.numCity),2))
+        childP1+=list(parent1[random_cut[0]:random_cut[1]])
+        childP2=[chr for chr in parent2 if chr not in childP1]
+        child=childP2[:random_cut[0]]+childP1+childP2[random_cut[0]:]
+        if np.random.rand()<=self.localSearchProb:
+            child=localsearch.k_opt(child,distanceMat=distanceMat)
+
+        return child
+
+
+
+class Mutation():
+    def __init__(self):
+        """Mutation Operation"""
+        pass
+    def start(self,population,method,mutationProb):
+
+        """ 
+        
+        Parameters
+        ----------
+
+        population: 2d array like
+        
+        method: string. Mutation type.
+                If "INV" --> Inversion Mutation
+                If "CINV" --> Center Inversion Mutation
+
+        Returns
+        -------
+        mutatedOffspring: 2d array like.
+        """
+        
+        if method=="INV":
+            mutOper=self.mutation_inverse
+        else:
+            mutOper=self.mutation_center_inverse
+        
+        mutatedOffspring=[]
+        for i in range(len(population)):
+            if np.random.rand()<=mutationProb:
+                mutatedGene=mutOper(population[i])
+                mutatedOffspring.append(mutatedGene)
+        return np.array(mutatedOffspring)
+        
+    def mutation_center_inverse(self,gene):
+        """
+        Center Inversion Mutation. The gene is divided into two segments and each part is inversed.
+
+        Parameters
+        ----------
+        gene: array like.
+
+        Returns
+        -------
+        gene: mutated gene
+        
+
+        """
+        numCity=len(gene)
+        centrePos=numCity//2
+        centrePos=np.random.randint(1,numCity)
+        gene[1:centrePos]=np.flip(gene[1:centrePos])
+        gene[centrePos:]=np.flip(gene[centrePos:])
+
+        return gene
+    def mutation_inverse(self,gene):
+        """ 
+        Inverse mutation
+
+        Parameters
+        ----------
+        gene: array like.
+
+        Returns
+        -------
+        gene: mutated gene
+        
+        """
+        numCity=len(gene)
+        inversePos=np.random.randint(1,numCity,2)
+        sublist=gene[inversePos[0]:inversePos[1]]
+        sublist= np.flip(sublist)
+        gene[inversePos[0]:inversePos[1]]=sublist
+        return gene
+
+class Elimination():
+    def __init__(self):
+        self.initialize=Initialization()
+    def start(self,oldPopulation,offspring,distanceMat,timeleft):
+        """New Population = Elitism+Offspring"""
+        lambdaa=len(oldPopulation)
+        newPopulation=np.array([])
+        fitnessScorePop=Metrics().fitness(oldPopulation,distanceMat)
+        sortScorePop=np.argsort(fitnessScorePop)
+        newPopulation=oldPopulation[sortScorePop[:lambdaa//4]]
+
+        # Crowding
+        if timeleft<100:
+            addedOffspring=[]
+            for i in range(len(offspring)):
+                numSeq=np.random.randint(1,len(newPopulation))
+                numLen=np.random.randint(5,20)
+                seq=self.calculate_similarity(newPopulation[numSeq:numSeq+numLen],offspring[i])
+                newPopulation[numSeq:numSeq+numLen]=seq
+                addedOffspring.append(i)
+            offspring=np.delete(offspring,addedOffspring,axis=0)
+        newPopulation=np.concatenate((newPopulation,offspring),axis=0)
+
+        if timeleft<100:
+            ranPopulation=self.initialize.initialize_population(self.lambdaa-len(newPopulation))
+            newPopulation=np.concatenate((newPopulation,ranPopulation),axis=0)
+        fitnessScorePop=Metrics().fitness(newPopulation,distanceMat)
+        bestSolutions=np.min(fitnessScorePop)
+        solutions=newPopulation[np.argmin(fitnessScorePop)]
+        meanSolutions=np.mean(fitnessScorePop)
+        return newPopulation,bestSolutions,meanSolutions,solutions
+    
+    def calculate_similarity(self,population,gene):
+        """ Check if there is any similar sequence as gene and then replace it"""
+        for i,p in enumerate(population):
+            sim=self.similarity_function(p,gene)
+            if sim>=0.75:
+                population[i]=gene
+                break
+        return population
+    
+    def similarity_function(self,gene1,gene2):
+        """ Calculate the similarity between two sequences"""
+        difference=gene1-gene2
+        return len(difference[difference==0])/len(difference)
+    
+
+
+
+class LocalSearch():
+    """Local Search Methods"""
+    def __init__(self):
+        pass
+    def k_opt(self,gene,k=1,setSize=5,distanceMat=None):
+        """ k-opt Local Search"""
+        mutation=Mutation()
+        metrics=Metrics()
+
+        population=[gene]
+        for i in range(setSize):
+            population.append(mutation.mutation_inverse(gene))
+        fitness=metrics.fitness(population,distanceMat)
+        choice=np.argmin(fitness)
+        return population[choice]
+
+class Initialization():
+
+    """Advanced Initialization Methods """
+    def __init__(self):
+        pass
+    def initialize_population(self,popSize,distanceMat):
+        """ 
+        parameters
+        ----------
+
+        popSize: int. Population size
+
+        distanceMat: 2d array-like. Distance Matrix
+
+        Returns
+        -------
+        population: 2d array like.
+
+        """
+        self.distanceMat=distanceMat
+        self.numCity=len(self.distanceMat)
+
+        population=[]
+        greedySize=int(0.3*popSize) # Size of greedy solutions
+        for i in range(greedySize):
+            population.append(self.greedySol())
+        # Add random solutions
+        for i in range(popSize-greedySize):
+            population.append(self.permutation())
+        
+        population=np.array(population)
+        population.resize(popSize,self.numCity)
+        return population
+    
+    def permutation(self):
+        """ Returns a permuation of C Integers representing a list of cities."""
+        gene=np.array([0])
+        gene=np.append(gene,np.random.permutation(list(range(1,self.numCity))))
+        return gene
+    def greedySol(self):
+	""" Return a greedy like solution """
+        greedyGene=[np.random.randint(0,self.numCity)]
+        #score=0
+        while len(greedyGene)<self.numCity-1:
+            index=greedyGene[-1]
+            added=False
+            i=1
+            minCity=np.argsort(self.distanceMat[index])
+            while not added:
+                if minCity[i] not in greedyGene:
+                    greedyGene.append(minCity[i])
+                    #score+=self.distanceMat[index][minCity[i]]
+                    added=True
+                i+=1
+        extraCity=np.setdiff1d(list(range(self.numCity)),greedyGene)[0]
+        greedyGene.append(extraCity)
+        while greedyGene[0]!=0:
+            greedyGene=np.roll(greedyGene,-1)
+        #print(len(np.unique(greedyGene)))
+        return greedyGene
+
+
+class Metrics():
+	""" Score Metrics """
+
+    def __init__(self):
+        pass
+    def fitness(self,population,distanceMat):
+        """Calculate the total distance for the path"""
+        scorePop=[]
+        for gene in population:
+            try:
+                score=distanceMat[gene,np.roll(gene,-1)].sum()
+            except:
+                print("ERROR IN CALCULATING FITNESS SCORE")
+                break
+            scorePop.append(score)
+        return scorePop
 
 
 
 if __name__=="__main__":
-	fn=r0873969()
-	fn.optimize("data/tour750.csv")
-	#plt.plot(range(fn.generation),fn.bestSolutions[1:])
-	print(fn.solutions[-1])
-	plt.show()
+    main=r0873969()
+    main.optimize("./tour750.csv")
